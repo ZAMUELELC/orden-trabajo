@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orden de Trabajo - Soluciones & Servicios</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 12px; background:#f4f4f4; }
+    .orden-trabajo { background: #fff; padding: 18px; max-width: 940px; margin: auto; border: 1px solid #ddd; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+    h2 { text-align:center; color:#ff8c2a; margin:4px 0 12px; }
+    .numero-orden { text-align:center; font-weight:bold; margin-bottom:12px; }
+    table { width:100%; border-collapse: collapse; font-size:13px; }
+    th, td { border:1px solid #333; padding:6px; text-align:center; }
+    .input { width:100%; border:none; outline:none; padding:4px; text-align:center; font-size:13px; }
+    .seccion { margin-top:14px; }
+    textarea { width:100%; height:120px; resize:none; border:1px solid #333; padding:6px; font-size:13px; }
+    .firmas { display:flex; gap:12px; margin-top:14px; flex-wrap:wrap; }
+    .firma { flex:1; min-width:240px; text-align:center; }
+    .firma canvas { width:100%; height:110px; border:1px solid #333; touch-action: none; background:white; }
+    .btn { padding:9px 14px; border:none; background:#007bff; color:#fff; cursor:pointer; margin:6px; border-radius:4px; }
+    .btn.secondary { background:#6c757d; }
+    .acciones { text-align:center; margin:14px 0; }
+    .footer { margin-top:24px; text-align:center; font-size:12px; color:#333; line-height:1.5; }
+    @media (max-width:520px) {
+      .orden-trabajo { padding:10px; }
+      textarea{height:100px}
+    }
+  </style>
+</head>
+<body>
+  <div class="orden-trabajo" id="content">
+    <h2>SOLUCIONES &amp; SERVICIOS</h2>
+
+    <!-- Aquí aparece el número automático -->
+    <div class="numero-orden">
+      Orden de Trabajo N° <span id="numeroOrden"></span>
+    </div>
+
+    <table>
+      <tr>
+        <td>Fecha<br><input class="input" id="fecha" type="date"></td>
+        <td>Hora de Llegada<br><input class="input" id="hllegada" type="time"></td>
+        <td>Hora de Salida<br><input class="input" id="hsalida" type="time"></td>
+      </tr>
+    </table>
+
+    <table>
+      <tr>
+        <th>Nombre de E.D.S</th>
+        <th>Marca de Equipo</th>
+        <th>Referencia de Equipo</th>
+        <th>Tipo de Servicio</th>
+        <th>Facturado</th>
+        <th>Garantía</th>
+      </tr>
+      <tr>
+        <td><input class="input" id="eds"></td>
+        <td><input class="input" id="marca"></td>
+        <td><input class="input" id="ref"></td>
+        <td><input class="input" id="tipo"></td>
+        <td><input class="input" id="fact"></td>
+        <td><input class="input" id="gar"></td>
+      </tr>
+    </table>
+
+    <div class="seccion">
+      <h3>Descripción del trabajo realizado</h3>
+      <textarea id="desc"></textarea>
+    </div>
+
+    <div class="seccion">
+      <h3>Repuestos utilizados</h3>
+      <textarea id="rep"></textarea>
+    </div>
+
+    <div class="firmas">
+      <div class="firma">
+        <div>Firma Técnico</div>
+        <canvas id="firmaTecnico"></canvas>
+        <div>
+          <button class="btn secondary" onclick="clearCanvas('firmaTecnico')">Borrar</button>
+        </div>
+      </div>
+      <div class="firma">
+        <div>Firma Administrador</div>
+        <canvas id="firmaAdmin"></canvas>
+        <div>
+          <button class="btn secondary" onclick="clearCanvas('firmaAdmin')">Borrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pie de página -->
+    <div class="footer">
+      <div>E-MAIL: SOLUCIONESYSERVICIOS.EDS@GMAIL.COM</div>
+      <div>CALLE 48 BIS No. 51A 44</div>
+      <div>Tel: 601 7043247</div>
+    </div>
+  </div>
+
+  <div class="acciones">
+    <button class="btn" onclick="downloadPDF()">Descargar PDF</button>
+    <button class="btn" onclick="resetAll()">Limpiar todo</button>
+  </div>
+
+  <!-- Scripts: html2canvas y jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    // =============== NUMERACIÓN AUTOMÁTICA ===============
+    let numero = localStorage.getItem("ordenNumero") || 1;
+    document.getElementById("numeroOrden").innerText = numero;
+
+    // =============== FIRMAS DIGITALES ===============
+    function prepareCanvasForDPR(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rectW = canvas.offsetWidth;
+      const rectH = canvas.offsetHeight;
+      canvas.width = rectW * dpr;
+      canvas.height = rectH * dpr;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 2;
+      return ctx;
+    }
+
+    function createSignature(id) {
+      const canvas = document.getElementById(id);
+      const ctx = prepareCanvasForDPR(canvas);
+      let painting = false;
+
+      function getXY(e) {
+        const rect = canvas.getBoundingClientRect();
+        if (e.touches) {
+          return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+        } else {
+          return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+      }
+
+      function start(e) { painting = true; const p = getXY(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }
+      function move(e) { if(!painting) return; const p = getXY(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }
+      function end() { painting = false; ctx.beginPath(); }
+
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+
+      canvas.addEventListener('touchstart', start, { passive:false });
+      canvas.addEventListener('touchmove', move, { passive:false });
+      window.addEventListener('touchend', end);
+    }
+
+    function clearCanvas(id) {
+      const canvas = document.getElementById(id);
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    window.addEventListener('load', () => {
+      createSignature('firmaTecnico');
+      createSignature('firmaAdmin');
+    });
+
+    // =============== RESETEAR FORMULARIO ===============
+    function resetAll() {
+      document.querySelectorAll('input').forEach(i => i.value='');
+      document.querySelectorAll('textarea').forEach(t => t.value='');
+      clearCanvas('firmaTecnico');
+      clearCanvas('firmaAdmin');
+    }
+
+    // =============== DESCARGAR PDF CON NUMERO DE ORDEN ===============
+    async function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const content = document.getElementById('content');
+      const canvas = await html2canvas(content, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
+      pdf.save(`orden_trabajo_${numero}.pdf`);
+
+      // aumentar el número para la siguiente orden
+      numero++;
+      localStorage.setItem("ordenNumero", numero);
+      document.getElementById("numeroOrden").innerText = numero;
+    }
+  </script>
+</body>
+</html>
+
